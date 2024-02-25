@@ -53,13 +53,15 @@ c.content.blocking.adblock.lists = [
         "https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=1&mimetype=plaintext",
         "https://gitlab.com/curben/urlhaus-filter/-/raw/master/urlhaus-filter-online.txt",
 	"https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt",
-	"https://adaway.org/hosts.txt"
+	"https://hblock.molinero.dev/hosts_adblock.txt"
         ]
 
 c.content.blocking.enabled = True
 c.content.blocking.hosts.lists = [
 	"https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts",
-	"https://raw.githubusercontent.com/mitchellkrogza/The-Big-List-of-Hacked-Malware-Web-Sites/master/hosts"
+	"https://raw.githubusercontent.com/mitchellkrogza/The-Big-List-of-Hacked-Malware-Web-Sites/master/hosts",
+	"https://hblock.molinero.dev/hosts",
+	"https://adaway.org/hosts.txt"
    	]
 
 config.bind(',b', 'config-cycle content.blocking.enabled true false')
