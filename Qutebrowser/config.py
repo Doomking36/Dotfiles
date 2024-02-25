@@ -52,14 +52,14 @@ c.content.blocking.adblock.lists = [
         "https://raw.githubusercontent.com/Ewpratten/youtube_ad_blocklist/master/blocklist.txt",
         "https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=1&mimetype=plaintext",
         "https://gitlab.com/curben/urlhaus-filter/-/raw/master/urlhaus-filter-online.txt",
-	"https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt"
+	"https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt",
+	"https://adaway.org/hosts.txt"
         ]
 
 c.content.blocking.enabled = True
 c.content.blocking.hosts.lists = [
 	"https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts",
-	"https://raw.githubusercontent.com/mitchellkrogza/The-Big-List-of-Hacked-Malware-Web-Sites/master/hosts",
-    	"https://adaway.org/hosts.txt"
+	"https://raw.githubusercontent.com/mitchellkrogza/The-Big-List-of-Hacked-Malware-Web-Sites/master/hosts"
    	]
 
 config.bind(',b', 'config-cycle content.blocking.enabled true false')
