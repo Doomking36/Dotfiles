@@ -1,0 +1,369 @@
+// ==UserScript==
+// @name               Better Youtube Shorts
+// @name:zh-CN         更好的Youtube Shorts
+// @name:zh-TW         更好的Youtube Shorts
+// @name:ja            より良いYoutube Shorts
+// @namespace          Violentmonkey Scripts
+// @version            1.4.0
+// @description        Provides more control features for Youtube Shorts, including volume control, progress bar, auto-scroll, hotkeys, and more.
+// @description:zh-CN  为Youtube Shorts提供更多的控制功能，包括音量控制，进度条，自动滚动，快捷键等等。
+// @description:zh-TW  為Youtube Shorts提供更多的控制功能，包括音量控制，進度條，自動滾動，快捷鍵等等。
+// @description:ja     Youtube Shortsに音量コントロール、プログレスバー、自動スクロール、ホットキーなどの機能を提供します。
+// @author             Meriel
+// @match              *://www.youtube.com/shorts/*
+// @run-at             document-start
+// @grant              GM_addStyle
+// @grant              GM_getValue
+// @grant              GM_setValue
+// @grant              GM_registerMenuCommand
+// @grant              GM_notification
+// @license            MIT
+// @icon               https://www.google.com/s2/favicons?sz=64&domain=youtube.com
+// @downloadURL https://update.greasyfork.org/scripts/487271/Better%20Youtube%20Shorts.user.js
+// @updateURL https://update.greasyfork.org/scripts/487271/Better%20Youtube%20Shorts.meta.js
+// ==/UserScript==
+
+GM_addStyle(
+  `input[type="range"].volslider {
+  height: 14px;
+  -webkit-appearance: none;
+  margin: 10px 0;
+}
+input[type="range"].volslider:focus {
+  outline: none;
+}
+input[type="range"].volslider::-webkit-slider-runnable-track {
+  height: 8px;
+  cursor: pointer;
+  box-shadow: 0px 0px 0px #000000;
+  background: rgb(50 50 50);
+  border-radius: 25px;
+  border: 1px solid #000000;
+}
+input[type="range"].volslider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: -7px;
+  border-radius: 0px;
+  background-image: url("https://i.imgur.com/vcQoCVS.png");
+  background-size: 20px;
+  background-repeat: no-repeat;
+  background-position: 50%;
+}
+input[type="range"]:focus::-webkit-slider-runnable-track {
+  background: rgb(50 50 50);
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 46px;
+  height: 20px;
+}
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  -webkit-transition: 0.4s;
+  transition: 0.4s;
+}
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 12px;
+  width: 12px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  -webkit-transition: 0.4s;
+  transition: 0.4s;
+}
+input:checked + .slider {
+  background-color: #ff0000;
+}
+input:focus + .slider {
+  box-shadow: 0 0 1px #ff0000;
+}
+input:checked + .slider:before {
+  -webkit-transform: translateX(26px);
+  -ms-transform: translateX(26px);
+  transform: translateX(26px);
+}
+/* Rounded sliders */
+.slider.round {
+  border-radius: 12px;
+}
+.slider.round:before {
+  border-radius: 50%;
+}`
+);
+
+let seekMouseDown = false;
+let lastCurSeconds = 0;
+let video = null;
+let audioInitialized = false;
+let autoScroll = GM_getValue("autoScroll", true);
+let volume = GM_getValue("volume", 0);
+let constantVolume = GM_getValue("constantVolume", false);
+
+GM_registerMenuCommand(
+  `Constant Volume: ${constantVolume ? "On" : "Off"}`,
+  function () {
+    constantVolume = !constantVolume;
+    GM_setValue("constantVolume", constantVolume);
+    location.reload();
+  }
+);
+
+const observer = new MutationObserver(
+  (mutations, shortsReady = false, videoPlayerReady = false) => {
+    outer: for (const mutation of mutations) {
+      for (const node of mutation.addedNodes) {
+        if (!shortsReady) {
+          shortsReady = node.tagName === "YTD-SHORTS";
+        }
+        if (!videoPlayerReady) {
+          videoPlayerReady =
+            typeof node.className === "string" &&
+            node.className.includes("html5-main-video");
+        }
+        if (shortsReady && videoPlayerReady) {
+          observer.disconnect();
+          video = node;
+          if (constantVolume) {
+            video.volume = volume;
+          }
+          addShortcuts();
+          updateVidElemWithRAF();
+          break outer;
+        }
+      }
+    }
+  }
+);
+observer.observe(document.documentElement, {
+  childList: true,
+  subtree: true,
+});
+
+function addShortcuts() {
+  addEventListener("keydown", function (e) {
+    switch (e.key.toUpperCase()) {
+      case "ARROWLEFT":
+        video.currentTime -= 2;
+        break;
+      case "ARROWRIGHT":
+        video.currentTime += 2;
+        break;
+      default:
+        break;
+    }
+  });
+}
+
+function padTo2Digits(num) {
+  return num.toString().padStart(2, "0");
+}
+
+function updateVidElemWithRAF() {
+  try {
+    updateVidElem();
+  } catch (_) {}
+  requestAnimationFrame(updateVidElemWithRAF);
+}
+
+function navigationButtonDown() {
+  document.querySelector("#navigation-button-down button").click();
+}
+
+function setVideoPlaybackTime(event, player) {
+  let rect = player.getBoundingClientRect();
+  let offsetX = event.clientX - rect.left;
+  if (offsetX < 0) {
+    offsetX = 0;
+  } else if (offsetX > player.offsetWidth) {
+    offsetX = player.offsetWidth - 1;
+  }
+  video.currentTime = (offsetX / player.offsetWidth) * video.duration;
+}
+
+function updateVidElem() {
+  if (!audioInitialized && constantVolume) {
+    video.volume = volume;
+  }
+
+  const reel = video.closest("ytd-reel-video-renderer");
+  if (reel === null) {
+    return;
+  }
+
+  // Volume Slider
+  let volumeSlider = document.querySelector("#byts-vol");
+  if (reel.querySelector("#byts-vol") === null) {
+    if (volumeSlider === null) {
+      volumeSlider = document.createElement("input");
+      volumeSlider.style.cssText = `user-select: none; width: 100px; left: 0px; background-color: transparent; position: absolute; margin-top: ${
+        reel.offsetHeight + 5
+      }px;`;
+      volumeSlider.type = "range";
+      volumeSlider.id = "byts-vol";
+      volumeSlider.className = "volslider";
+      volumeSlider.name = "vol";
+      volumeSlider.min = 0.0;
+      volumeSlider.max = 1.0;
+      volumeSlider.step = 0.01;
+      volumeSlider.value = video.volume;
+      volumeSlider.addEventListener("input", function () {
+        video.volume = this.value;
+        GM_setValue("volume", this.value);
+      });
+    }
+    reel.appendChild(volumeSlider);
+    audioInitialized = true;
+  }
+  if (constantVolume) {
+    video.volume = volumeSlider.value;
+  }
+  volumeSlider.value = video.volume;
+  volumeSlider.style.marginTop = `${reel.offsetHeight + 5}px`;
+
+  // Progress Bar
+  let progressBar = document.querySelector("#byts-progbar");
+  if (reel.querySelector("#byts-progbar") === null) {
+    const builtinProgressbar = reel.querySelector("#progress-bar");
+    if (builtinProgressbar !== null) {
+      builtinProgressbar.remove();
+    }
+    if (progressBar === null) {
+      progressBar = document.createElement("div");
+      progressBar.id = "byts-progbar";
+      progressBar.style.cssText = `user-select: none; cursor: pointer; width: 98%; height: 6px; background-color: #343434; position: absolute; border-radius: 10px; margin-top: ${
+        reel.offsetHeight - 6
+      }px;`;
+    }
+    reel.appendChild(progressBar);
+
+    progressBar.addEventListener("mousedown", (e) => {
+      seekMouseDown = true;
+      setVideoPlaybackTime(e, progressBar);
+      video.pause();
+    });
+    document.addEventListener("mousemove", (e) => {
+      if (!seekMouseDown) return;
+      setVideoPlaybackTime(e, progressBar);
+      if (!video.paused) {
+        video.pause();
+      }
+    });
+    document.addEventListener("mouseup", () => {
+      if (!seekMouseDown) return;
+      seekMouseDown = false;
+      video.play();
+    });
+  }
+  progressBar.style.marginTop = `${reel.offsetHeight - 6}px`;
+
+  // Progress Bar (Inner Red Bar)
+  let progressTime = (video.currentTime / video.duration) * 100;
+  let InnerProgressBar = progressBar.querySelector("#byts-progress");
+  if (InnerProgressBar === null) {
+    InnerProgressBar = document.createElement("div");
+    InnerProgressBar.id = "byts-progress";
+    InnerProgressBar.style.cssText = `user-select: none; background-color: #FF0000; height: 100%; border-radius: 10px; width: ${progressTime}%;`;
+    InnerProgressBar.addEventListener("mouseup", (e) => {
+      video.currentTime = ((e.offsetX * 1) / reel.offsetWidth) * video.duration;
+    });
+    progressBar.appendChild(InnerProgressBar);
+  }
+  InnerProgressBar.style.width = `${progressTime}%`;
+
+  // Time Info
+  let durSecs = Math.floor(video.duration);
+  let durMinutes = Math.floor(durSecs / 60);
+  let durSeconds = durSecs % 60;
+  let curSecs = Math.floor(video.currentTime);
+
+  let timeInfo = document.querySelector("#byts-timeinfo");
+  let timeInfoText = document.querySelector("#byts-timeinfo-textdiv");
+  if (
+    curSecs !== lastCurSeconds ||
+    reel.querySelector("#byts-timeinfo") === null
+  ) {
+    lastCurSeconds = curSecs;
+    let curMinutes = Math.floor(curSecs / 60);
+    let curSeconds = curSecs % 60;
+
+    if (reel.querySelector("#byts-timeinfo") === null) {
+      if (timeInfo === null) {
+        timeInfo = document.createElement("div");
+        timeInfo.id = "byts-timeinfo";
+        timeInfo.style.cssText = `user-select: none; display: flex; right: auto; left: auto; position: absolute; margin-top: ${
+          reel.offsetHeight + 2
+        }px;`;
+        timeInfoText = document.createElement("div");
+        timeInfoText.id = "byts-timeinfo-textdiv";
+        timeInfoText.style.cssText = `display: flex; margin-right: 5px; margin-top: 4px; color: white; font-size: 1.2rem;`;
+        timeInfoText.textContent = `${curMinutes}:${padTo2Digits(
+          curSeconds
+        )} / ${durMinutes}:${padTo2Digits(durSeconds)}`;
+        timeInfo.appendChild(timeInfoText);
+      }
+      reel.appendChild(timeInfo);
+    }
+    timeInfoText.textContent = `${curMinutes}:${padTo2Digits(
+      curSeconds
+    )} / ${durMinutes}:${padTo2Digits(durSeconds)}`;
+  }
+  timeInfo.style.marginTop = `${reel.offsetHeight + 2}px`;
+
+  // AutoScroll
+  let autoScrollDiv = document.querySelector("#byts-autoscroll-div");
+  if (reel.querySelector("#byts-autoscroll-div") === null) {
+    if (autoScrollDiv === null) {
+      autoScrollDiv = document.createElement("div");
+      autoScrollDiv.id = "byts-autoscroll-div";
+      autoScrollDiv.style.cssText = `user-select: none; display: flex; right: 0px; position: absolute; margin-top: ${
+        reel.offsetHeight + 2
+      }px;`;
+      const autoScrollTextDiv = document.createElement("div");
+      autoScrollTextDiv.style.cssText = `display: flex; margin-right: 5px; margin-top: 4px; color: white; font-size: 1.2rem;`;
+      autoScrollTextDiv.textContent = "Auto Scroll: ";
+      autoScrollDiv.appendChild(autoScrollTextDiv);
+      const autoScrollSwitch = document.createElement("label");
+      autoScrollSwitch.className = "switch";
+      const autoscrollInput = document.createElement("input");
+      autoscrollInput.id = "byts-autoscroll-input";
+      autoscrollInput.type = "checkbox";
+      autoscrollInput.checked = autoScroll;
+      autoscrollInput.addEventListener("input", function () {
+        autoScroll = this.checked;
+        GM_setValue("autoScroll", this.checked);
+      });
+      const autoScrollSlider = document.createElement("span");
+      autoScrollSlider.className = "slider round";
+      autoScrollSwitch.appendChild(autoscrollInput);
+      autoScrollSwitch.appendChild(autoScrollSlider);
+      autoScrollDiv.appendChild(autoScrollSwitch);
+    }
+    reel.appendChild(autoScrollDiv);
+  }
+  if (autoScroll === true) {
+    video.removeAttribute("loop");
+    video.removeEventListener("ended", navigationButtonDown);
+    video.addEventListener("ended", navigationButtonDown);
+  } else {
+    video.setAttribute("loop", true);
+    video.removeEventListener("ended", navigationButtonDown);
+  }
+  autoScrollDiv.style.marginTop = `${reel.offsetHeight + 2}px`;
+}
