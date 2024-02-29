@@ -9,7 +9,7 @@ c.content.webgl = False
 
 c.content.canvas_reading = False
 
-c.content.javascript.enabled = False
+c.content.javascript.enabled = True
 
 c.content.pdfjs = False
 
